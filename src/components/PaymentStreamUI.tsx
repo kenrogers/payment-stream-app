@@ -6,11 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Bitcoin, ArrowRight, Timer, Wallet } from "lucide-react";
-import {
-  showConnect,
-  openContractCall,
-  LeatherProvider,
-} from "@stacks/connect";
+import { showConnect, openContractCall } from "@stacks/connect";
 import { userSession } from "@/lib/userSession";
 import {
   uintCV,
@@ -59,23 +55,20 @@ const PaymentStreamUI = () => {
 
   const connectWallet = async () => {
     try {
-      showConnect(
-        {
-          userSession,
-          appDetails: {
-            name: "BTC Payment Stream",
-            icon: window.location.origin + "/favicon.ico",
-          },
-          onFinish: () => {
-            setWalletConnected(true);
-            setActiveStep(1);
-          },
-          onCancel: () => {
-            console.log("Wallet connection cancelled");
-          },
+      showConnect({
+        userSession,
+        appDetails: {
+          name: "BTC Payment Stream",
+          icon: window.location.origin + "/favicon.ico",
         },
-        LeatherProvider
-      );
+        onFinish: () => {
+          setWalletConnected(true);
+          setActiveStep(1);
+        },
+        onCancel: () => {
+          console.log("Wallet connection cancelled");
+        },
+      });
     } catch (error) {
       console.error("Wallet connection error:", error);
     }
@@ -92,33 +85,30 @@ const PaymentStreamUI = () => {
       // Step 1: Mock BTC deposit
       console.log("Mocking BTC deposit of", btcAmount, "BTC");
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      const mockBtcTxId = "0x" + Math.random().toString(16).slice(2);
+      const mockBtcTxId = Math.random().toString(16).slice(2);
       console.log("Mock BTC Transaction:", mockBtcTxId);
 
       // Step 2: Call sBTC mint function
-      await openContractCall(
-        {
-          network: "devnet",
-          contractAddress: "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM",
-          contractName: "sbtc-token",
-          functionName: "mint",
-          functionArgs: [
-            uintCV(Math.floor(parseFloat(btcAmount) * 100000000)), // amount in sats
-            principalCV("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"), // recipient
-          ],
-          postConditionMode: PostConditionMode.Allow,
-          onFinish: (result) => {
-            console.log("sBTC mint transaction:", result);
-            setIsProcessing(false);
-            setActiveStep(2);
-          },
-          onCancel: () => {
-            console.log("sBTC mint cancelled");
-            setIsProcessing(false);
-          },
+      await openContractCall({
+        network: "devnet",
+        contractAddress: "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM",
+        contractName: "sbtc-token",
+        functionName: "mint",
+        functionArgs: [
+          uintCV(Math.floor(parseFloat(btcAmount) * 100000000)), // amount in sats
+          principalCV("ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"), // recipient
+        ],
+        postConditionMode: PostConditionMode.Allow,
+        onFinish: (result) => {
+          console.log("sBTC mint transaction:", result);
+          setIsProcessing(false);
+          setActiveStep(2);
         },
-        LeatherProvider
-      );
+        onCancel: () => {
+          console.log("sBTC mint cancelled");
+          setIsProcessing(false);
+        },
+      });
     } catch (error) {
       console.error("BTC deposit error:", error);
       setIsProcessing(false);
@@ -148,47 +138,44 @@ const PaymentStreamUI = () => {
         "stop-block": uintCV(currentBlock + durationBlocks),
       });
 
-      await openContractCall(
-        {
-          network: "devnet",
-          contractAddress: "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM",
-          contractName: "stream",
-          functionName: "stream-to",
-          functionArgs: [
-            principalCV(recipientAddress),
-            uintCV(sbtcAmount),
-            timeframeCV,
-            uintCV(paymentPerBlock),
-          ],
-          postConditionMode: PostConditionMode.Allow,
-          onFinish: (result) => {
-            console.log("Transaction ID:", result);
+      await openContractCall({
+        network: "devnet",
+        contractAddress: "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM",
+        contractName: "stream",
+        functionName: "stream-to",
+        functionArgs: [
+          principalCV(recipientAddress),
+          uintCV(sbtcAmount),
+          timeframeCV,
+          uintCV(paymentPerBlock),
+        ],
+        postConditionMode: PostConditionMode.Allow,
+        onFinish: (result) => {
+          console.log("Transaction ID:", result);
 
-            // Create stream object for UI
-            const newStream = {
-              id: streams.length + 1,
-              recipient: recipientAddress,
-              initialBalance: sbtcAmount,
-              timeframe: {
-                startBlock: currentBlock,
-                stopBlock: currentBlock + durationBlocks,
-              },
-              paymentPerBlock,
-              startedAt: new Date().toISOString(),
-              status: "active",
-            };
+          // Create stream object for UI
+          const newStream = {
+            id: streams.length + 1,
+            recipient: recipientAddress,
+            initialBalance: sbtcAmount,
+            timeframe: {
+              startBlock: currentBlock,
+              stopBlock: currentBlock + durationBlocks,
+            },
+            paymentPerBlock,
+            startedAt: new Date().toISOString(),
+            status: "active",
+          };
 
-            setStreams([...streams, newStream]);
-            setActiveStep(3);
-            setIsProcessing(false);
-          },
-          onCancel: () => {
-            console.log("Transaction cancelled");
-            setIsProcessing(false);
-          },
+          setStreams([...streams, newStream]);
+          setActiveStep(3);
+          setIsProcessing(false);
         },
-        LeatherProvider
-      );
+        onCancel: () => {
+          console.log("Transaction cancelled");
+          setIsProcessing(false);
+        },
+      });
     } catch (error) {
       console.error("Stream creation error:", error);
       alert("Failed to create stream. Please try again.");

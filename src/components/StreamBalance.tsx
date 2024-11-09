@@ -94,12 +94,16 @@ const StreamBalance: React.FC<StreamBalanceProps> = ({
   ) => {
     if (balance === null) return 0;
 
+    // Ensure we don't divide by zero
+    if (initialBalance === 0) return 0;
+
     if (view === "sender") {
       // For sender, show percentage of funds remaining
-      return (balance / initialBalance) * 100;
+      return Math.min(100, Math.max(0, (balance / initialBalance) * 100));
     } else {
       // For recipient, show percentage of funds received
-      return ((initialBalance - (balance || 0)) / initialBalance) * 100;
+      const received = initialBalance - balance;
+      return Math.min(100, Math.max(0, (received / initialBalance) * 100));
     }
   };
 
@@ -156,7 +160,11 @@ const StreamBalance: React.FC<StreamBalanceProps> = ({
                 <div className="flex justify-between items-center">
                   <span>Received Balance:</span>
                   <span className="font-medium">
-                    {formatBalance(recipientBalance)}
+                    {formatBalance(
+                      recipientBalance !== null
+                        ? initialBalance - (senderBalance || 0)
+                        : null
+                    )}
                   </span>
                 </div>
                 <div className="space-y-1">
