@@ -20,17 +20,10 @@ plan:
     - id: 1
       transactions:
         - contract-publish:
-            contract-name: sbtc-token
+            contract-name: greenchain
             expected-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-            cost: 11500
-            path: contracts/sbtc-token.clar
+            cost: 43390
+            path: contracts/greenchain.clar
             anchor-block-only: true
-            clarity-version: 2
-        - contract-publish:
-            contract-name: stream
-            expected-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-            cost: 59800
-            path: contracts/stream.clar
-            anchor-block-only: true
-            clarity-version: 2
-      epoch: "2.5"
+            clarity-version: 3
+      epoch: "3.0"
