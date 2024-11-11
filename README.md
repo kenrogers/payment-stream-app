@@ -1,3 +1,28 @@
+# Stacks Smart Contract Crowdfunding and Dividend App (4th Place Project at Easy A x Stacks Harvard Hackathon 2024)
+A decentralized application for crowdfunding and paying dividends using smart contracts on Stacks, with a theme of investment into renewable energy resources for Data Center power consumption.
+## Prerequisites
+- [Leather Wallet](https://leather.io/) browser extension
+- Node.js 16+ and npm/yarn
+- Local [Stacks devnet](https://docs.hiro.so/stacks/clarinet/guides/run-a-local-devnet) running
+## Setup
+1. Clone the repository and install dependencies:
+```bash
+git clone <repository-url>
+cd repo-name
+npm install
+```
+2. Start the development server:
+```bash
+npm run dev
+```
+3. Start the local Stacks devnet:
+```bash
+# In a separate terminal
+cd contracts
+clarinet devnet start
+```
+4. Open [http://localhost:3000](http://localhost:3000) in your browser
+
 ## Usage
 
 1. **Connect Wallet**
