@@ -9,32 +9,78 @@ import { Wallet, Zap, Users, Battery } from 'lucide-react';
 import React, { useState, useEffect } from "react";
 import { showConnect, openContractCall } from "@stacks/connect";
 import { userSession } from "@/lib/userSession";
+import * as stacksNetwork from '@stacks/network';
+import { fetchReadOnlyFunction, standardPrincipalCV, uintCV, cvToValue } from '@stacks/transactions';
 
 const GreenEnergyDemo = () => {
-    // Mock wallet and demo state
     const [walletConnected, setWalletConnected] = useState(false);
     const [userAddress, setUserAddress] = useState('');
+    const [userBalance, setUserBalance] = useState(0);
     const [step, setStep] = useState(0);
     const [fundingGoal, setFundingGoal] = useState('');
     const [contributors, setContributors] = useState([]);
     const [currentContribution, setCurrentContribution] = useState('');
-    const [currentContributor, setCurrentContributor] = useState('');
     const [energyConsumption, setEnergyConsumption] = useState('');
     const [totalContributed, setTotalContributed] = useState(0);
     const [error, setError] = useState('');
     const [payouts, setPayouts] = useState([]);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [currentContributor, setCurrentContributor] = useState('');
+
+    const CONTRACT_ADDRESS = 'YOUR_CONTRACT_ADDRESS';
+    const CONTRACT_NAME = 'YOUR_CONTRACT_NAME';
+    
+    const checkSTXBalance = async (address) => {
+        try {
+            const network = new stacksNetwork.StacksTestnet();
+            const response = await fetchReadOnlyFunction({
+                network,
+                contractAddress: CONTRACT_ADDRESS,
+                contractName: CONTRACT_NAME,
+                functionName: 'stx-get-balance',
+                functionArgs: [standardPrincipalCV(address)],
+                senderAddress: address,
+            });
+            
+            const balanceInMicroSTX = cvToValue(response);
+            const balanceInSTX = balanceInMicroSTX / 1000000;
+            return balanceInSTX;
+        } catch (error) {
+            console.error("Error checking STX balance:", error);
+            throw error;
+        }
+    };
+
+    const fetchUserBalance = async (address) => {
+        try {
+            const response = await fetch(
+                `https://stacks-node-api.testnet.stacks.co/extended/v1/address/${address}/balances`
+            );
+            const data = await response.json();
+            const balanceInSTX = parseInt(data.stx.balance) / 1000000;
+            return balanceInSTX;
+        } catch (error) {
+            console.error("Error fetching balance:", error);
+            return 0;
+        }
+    };
 
     const connectWallet = async () => {
         try {
             showConnect({
                 userSession,
                 appDetails: {
-                    name: "BTC Payment Stream",
+                    name: "Green Energy Demo",
                     icon: window.location.origin + "/favicon.ico",
                 },
-                onFinish: () => {
+                onFinish: async () => {
+                    const userData = userSession.loadUserData();
+                    const address = userData.profile.stxAddress.testnet;
+                    const balance = await fetchUserBalance(address);
+
                     setWalletConnected(true);
+                    setUserAddress(address);
+                    setUserBalance(balance);
                     setStep(1);
                 },
                 onCancel: () => {
@@ -43,25 +89,25 @@ const GreenEnergyDemo = () => {
             });
         } catch (error) {
             console.error("Wallet connection error:", error);
+            setError("Failed to connect wallet. Please try again.");
         }
     };
 
     const disconnectWallet = () => {
+        userSession.signUserOut();
         setWalletConnected(false);
         setUserAddress('');
+        setUserBalance(0);
         setStep(0);
-        // Reset all state
         setFundingGoal('');
         setContributors([]);
         setCurrentContribution('');
-        setCurrentContributor('');
         setEnergyConsumption('');
         setTotalContributed(0);
         setPayouts([]);
-        userSession.signUserOut(); // TODO where do I put this
+        setError('');
     };
 
-    // Mock contract interactions
     const handleInitialize = async () => {
         if (!fundingGoal || parseFloat(fundingGoal) <= 0) {
             setError('Please enter a valid funding goal');
@@ -69,11 +115,15 @@ const GreenEnergyDemo = () => {
         }
 
         setIsProcessing(true);
-        // Simulate transaction delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        setStep(2);
-        setError('');
-        setIsProcessing(false);
+        try {
+            setStep(2);
+            setError('');
+        } catch (error) {
+            setError('Failed to initialize. Please try again.');
+            console.error("Initialize error:", error);
+        } finally {
+            setIsProcessing(false);
+        }
     };
 
     const handleAddContribution = async () => {
@@ -82,32 +132,54 @@ const GreenEnergyDemo = () => {
             return;
         }
 
-        const contribution = parseInt(currentContribution);
-        const remainingToGoal = parseInt(fundingGoal) - totalContributed;
+        const contribution = parseFloat(currentContribution);
+        const remainingToGoal = parseFloat(fundingGoal) - totalContributed;
 
         if (contribution > remainingToGoal) {
-            setError(`Contribution exceeds remaining amount needed (${remainingToGoal})`);
+            setError(`Contribution exceeds remaining amount needed (${remainingToGoal} STX)`);
             return;
         }
 
-        setIsProcessing(true);
-        // Simulate transaction delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        const newContributors = [...contributors, {
-            address: currentContributor,
-            amount: contribution
-        }];
-        setContributors(newContributors);
-        setTotalContributed(totalContributed + contribution);
-        setCurrentContribution('');
-        setCurrentContributor('');
-        setError('');
-
-        if (totalContributed + contribution >= parseInt(fundingGoal)) {
-            setStep(3);
+        if (currentContributor === userAddress) {
+            try {
+                const currentBalance = await fetchUserBalance(currentContributor);
+                if (contribution > currentBalance) {
+                    setError(`Insufficient balance. Your current balance: ${currentBalance.toFixed(2)} STX`);
+                    return;
+                }
+            } catch (error) {
+                setError('Failed to verify balance. Please try again.');
+                return;
+            }
         }
-        setIsProcessing(false);
+
+        setIsProcessing(true);
+        try {
+            const newContributors = [...contributors, {
+                address: currentContributor,
+                amount: contribution
+            }];
+
+            if (currentContributor === userAddress) {
+                const newBalance = await fetchUserBalance(userAddress);
+                setUserBalance(newBalance);
+            }
+
+            setContributors(newContributors);
+            setTotalContributed(prevTotal => prevTotal + contribution);
+            setCurrentContribution('');
+            setCurrentContributor('');
+            setError('');
+
+            if (totalContributed + contribution >= parseFloat(fundingGoal)) {
+                setStep(3);
+            }
+        } catch (error) {
+            setError('Failed to process contribution. Please try again.');
+            console.error("Contribution error:", error);
+        } finally {
+            setIsProcessing(false);
+        }
     };
 
     const handleEnergyConsumption = async () => {
@@ -117,23 +189,24 @@ const GreenEnergyDemo = () => {
         }
 
         setIsProcessing(true);
-        // Simulate transaction delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        try {
+            const totalEnergyCost = parseFloat(energyConsumption);
+            const newPayouts = contributors.map(contributor => ({
+                address: contributor.address,
+                amount: (contributor.amount / totalContributed) * totalEnergyCost
+            }));
 
-        // Calculate payouts
-        const totalEnergyCost = parseInt(energyConsumption);
-        const newPayouts = contributors.map(contributor => ({
-            address: contributor.address,
-            amount: (contributor.amount / totalContributed) * totalEnergyCost
-        }));
-
-        setPayouts(newPayouts);
-        setStep(4);
-        setError('');
-        setIsProcessing(false);
+            setPayouts(newPayouts);
+            setStep(4);
+            setError('');
+        } catch (error) {
+            setError('Failed to process energy consumption. Please try again.');
+            console.error("Energy consumption error:", error);
+        } finally {
+            setIsProcessing(false);
+        }
     };
 
-    // Progress steps component
     const ProgressSteps = () => (
         <div className="flex justify-between mb-8">
             {[
@@ -144,12 +217,10 @@ const GreenEnergyDemo = () => {
             ].map((item) => (
                 <div
                     key={item.title}
-                    className={`flex flex-col items-center space-y-2 ${step >= item.step ? "text-blue-600" : "text-gray-400"
-                        }`}
+                    className={`flex flex-col items-center space-y-2 ${step >= item.step ? "text-blue-600" : "text-gray-400"}`}
                 >
                     <div
-                        className={`w-10 h-10 rounded-full flex items-center justify-center ${step >= item.step ? "bg-blue-100" : "bg-gray-100"
-                            }`}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center ${step >= item.step ? "bg-blue-100" : "bg-gray-100"}`}
                     >
                         <item.icon className="w-5 h-5" />
                     </div>
@@ -163,9 +234,10 @@ const GreenEnergyDemo = () => {
         <div className="max-w-2xl mx-auto space-y-6 p-4">
             {walletConnected && (
                 <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500">
-                        Connected: {userAddress.slice(0, 8)}...
-                    </span>
+                    <div className="flex flex-col text-sm text-gray-500">
+                        <span>Connected: {userAddress.slice(0, 8)}...</span>
+                        <span>Balance: {userBalance.toFixed(2)} STX</span>
+                    </div>
                     <Button variant="outline" onClick={disconnectWallet} className="text-sm">
                         Disconnect Wallet
                     </Button>
@@ -201,13 +273,13 @@ const GreenEnergyDemo = () => {
                         <>
                             <div>
                                 <label className="block text-sm font-medium mb-2">
-                                    Funding Goal Amount
+                                    Funding Goal Amount (STX)
                                 </label>
                                 <Input
                                     type="number"
                                     value={fundingGoal}
                                     onChange={(e) => setFundingGoal(e.target.value)}
-                                    placeholder="Enter funding goal"
+                                    placeholder="Enter funding goal in STX"
                                 />
                             </div>
                             <Button
@@ -224,27 +296,38 @@ const GreenEnergyDemo = () => {
                         <>
                             <div className="space-y-4">
                                 <Progress
-                                    value={(totalContributed / parseInt(fundingGoal)) * 100}
+                                    value={(totalContributed / parseFloat(fundingGoal)) * 100}
                                     className="w-full"
                                 />
                                 <div className="text-sm text-gray-500 text-center">
-                                    {totalContributed} / {fundingGoal} contributed
+                                    {totalContributed.toFixed(2)} / {fundingGoal} STX contributed
                                 </div>
 
                                 <div>
                                     <label className="block text-sm font-medium mb-2">
                                         Contributor Address
                                     </label>
-                                    <Input
-                                        value={currentContributor}
-                                        onChange={(e) => setCurrentContributor(e.target.value)}
-                                        placeholder="Enter contributor address"
-                                    />
+                                    <div className="flex gap-2">
+                                        <Input
+                                            value={currentContributor}
+                                            onChange={(e) => setCurrentContributor(e.target.value)}
+                                            placeholder="Enter contributor address"
+                                        />
+                                        {userAddress && (
+                                            <Button
+                                                variant="outline"
+                                                onClick={() => setCurrentContributor(userAddress)}
+                                                className="whitespace-nowrap"
+                                            >
+                                                Use My Address
+                                            </Button>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <div>
                                     <label className="block text-sm font-medium mb-2">
-                                        Contribution Amount
+                                        Contribution Amount (STX)
                                     </label>
                                     <Input
                                         type="number"
@@ -272,7 +355,7 @@ const GreenEnergyDemo = () => {
                                                     className="flex justify-between items-center text-sm"
                                                 >
                                                     <span>{contributor.address.slice(0, 8)}...</span>
-                                                    <span>{contributor.amount}</span>
+                                                    <span>{contributor.amount.toFixed(2)} STX</span>
                                                 </div>
                                             ))}
                                         </div>
@@ -286,13 +369,13 @@ const GreenEnergyDemo = () => {
                         <>
                             <div>
                                 <label className="block text-sm font-medium mb-2">
-                                    Energy Consumption Amount
+                                    Energy Consumption Amount (STX)
                                 </label>
                                 <Input
                                     type="number"
                                     value={energyConsumption}
                                     onChange={(e) => setEnergyConsumption(e.target.value)}
-                                    placeholder="Enter energy consumption"
+                                    placeholder="Enter energy consumption in STX"
                                 />
                             </div>
                             <Button
@@ -315,7 +398,7 @@ const GreenEnergyDemo = () => {
                                         className="flex justify-between items-center text-sm"
                                     >
                                         <span>{payout.address.slice(0, 8)}...</span>
-                                        <span>{payout.amount.toFixed(2)}</span>
+                                        <span>{payout.amount.toFixed(2)} STX</span>
                                     </div>
                                 ))}
                             </div>

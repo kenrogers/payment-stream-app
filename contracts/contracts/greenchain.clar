@@ -9,7 +9,6 @@
 (define-constant ERR-CONTRIBUTION-FAILED (err u105))
 (define-constant ERR-ZERO-AMOUNT (err u106))
 (define-constant ERR-EXCEEDS-GOAL (err u107))
-(define-constant ERR-INSUFFICIENT-BALANCE (err u108))
 
 ;; Data variables
 (define-data-var contract-owner principal tx-sender)
@@ -43,9 +42,6 @@
         ;; Check if contribution would exceed goal
         (asserts! (<= (+ (var-get total-contributions) amount) (var-get funding-goal)) 
                  ERR-EXCEEDS-GOAL)
-        
-        ;; Check if sender has sufficient balance
-        (asserts! (>= (stx-get-balance tx-sender) amount) ERR-INSUFFICIENT-BALANCE)
         
         ;; Transfer STX from sender to contract
         (try! (stx-transfer? amount tx-sender (as-contract tx-sender)))
